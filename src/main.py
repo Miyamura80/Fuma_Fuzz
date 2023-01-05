@@ -24,12 +24,25 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "-s", "--source", help="Name of EVM code to execute located inside of \`./data\`. If provided .sol file, will compile via solc first.", required=True
 )
+
+# Solc Compiler Arguments
 parser.add_argument(
+    "-r",
     "--recompile",
     help="Recompile if source is solidity file",
     type=str2bool,
     default=True,
 )
+parser.add_argument(
+    "-o",
+    "--optimize",
+    help="Carry out bytecode optimization on compilation",
+    type=str2bool,
+    default=True,
+)
+parser.add_argument("-v", "--version", help="The solc version we will use.", default="0.7.0")
+
+# RL arguments
 parser.add_argument("-m", "--model", help="The RL architecture we will use.", default="PPO")
 parser.add_argument("-e", "--environment", help="The RL training environment the agent uses.", default="EVM")
 
@@ -49,18 +62,18 @@ parser.add_argument(
 args = parser.parse_args()
 
 
-root_dir = osp.join(osp.dirname(osp.realpath(__file__)), "..")
-
+root_dir = osp.abspath(osp.join(osp.dirname(osp.realpath(__file__)), ".."))
 
 
 bytecode = get_bytecode(args, root_dir)
+for k,v in bytecode.items():
+    print(k)
+# env = EVM(args)
 
-env = EVM(args)
 
-
-model = get_model(
-    args,
-)
+# model = get_model(
+#     args,
+# )
 
 
 # run_sc_model_gc(
@@ -70,6 +83,6 @@ model = get_model(
 #     lr=args.lr,
 #     batch_size=args.batch_size,
 #     epochs=args.epochs,
-)
+# )
 
 
