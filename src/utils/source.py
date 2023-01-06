@@ -14,7 +14,6 @@ def get_bytecode(args, root_dir) -> Dict[str, Any]:
         precompiled_solidity_path = osp.join(root_dir, "data", "compiled_solidity", f"{source_prefix}.json")
 
         if not osp.exists(precompiled_solidity_path) or args.recompile:
-            print("compiling ...")
             compiled_json = solcx.compile_files(
                 [source_code_path],
                 output_values=["abi", "bin-runtime"],
