@@ -1,7 +1,7 @@
 import configparser
 import argparse
 import os.path as osp
-from utils import get_bytecode, get_model, get_config, save_pkl_object
+from utils import get_bytecode, get_model, get_config, save_pkl_object, load_model_from_pkl
 from training import train_ppo
 from environment import EVM
 import jax
@@ -88,6 +88,7 @@ model, params = get_model(
     rng,
     config
 )
+# model, params = load_model_from_pkl(config, f"agents/experiment/PPO_001.pkl")
 
 
 mle_log = None
@@ -104,7 +105,7 @@ data_to_store = {
 }
 
 
-log_ext = "001"
+log_ext = "002"
 
 save_pkl_object(
     data_to_store,
