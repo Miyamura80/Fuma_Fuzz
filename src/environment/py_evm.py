@@ -9,37 +9,26 @@ from flax import struct
 
 @struct.dataclass
 class EnvState:
-    ball_y: int
-    ball_x: int
-    ball_dir: int
-    pos: int
-    brick_map: chex.Array
-    strike: bool
-    last_y: int
-    last_x: int
-    time: int
-    terminal: bool
+    observable: chex.Array
+    # contract: chex.Array # TODO: we ignore this for now!
 
 
 @struct.dataclass
 class EnvParams:
-    max_steps_in_episode: int = 1000
+    attacker_initial_balance: int = 100000000 # 0.1 ETH, unit in gwei
+    address_set_size: int = 2 # Default |A|=2, A[0] is creator, A[1] is attacker
 
 
 class PyEVM(environment.Environment):
     """
-    JAX Compatible version of Breakout MinAtar environment. Source:
-    github.com/kenjyoung/MinAtar/blob/master/minatar/environments/breakout.py
+    JAX Compatible version of EVM environment
 
-    ENVIRONMENT DESCRIPTION - 'Breakout-MinAtar'
-    - Player controls paddle on bottom of screen.
-    - Must bounce ball to break 3 rows if bricks along top of screen.
-    - A reward of +1 is given for each broken brick.
-    - If all bricks are cleared another 3 rows are added.
-    - Ball travels only along diagonals, when paddle/wall hit it bounces off
-    - Termination if ball hits bottom of screen.
-    - Ball direction is indicated by a trail channel.
-    - There is no difficulty increase.
+    ENVIRONMENT DESCRIPTION - 'PyEVM'
+    - A reward of +v is given if agent balance is increased by v gwei
+    - A reward of +epsilon for state change, with decay over time
+    - Agent makes function calls according to ABI
+    - Termination if contract is entirely drained
+
     - Channels are encoded as follows: 'paddle':0, 'ball':1, 'trail':2, 'brick':3
     - Observation has dimensionality (10, 10, 4)
     - Actions are encoded as follows: ['n','l','r']
