@@ -1,7 +1,7 @@
 import configparser
 import argparse
 import os.path as osp
-from utils import get_bytecode, get_model
+from utils import get_bytecode, get_model, get_config
 from environment import EVM
 
 def str2bool(v):
@@ -43,6 +43,10 @@ parser.add_argument(
 parser.add_argument("-v", "--version", help="The solc version we will use.", default="0.7.0")
 
 # RL arguments
+parser.add_argument(
+    "-c", "--config", help="Name of config file (.yaml) to use for RL model located inside of \`./config\`. ", required=True
+)
+parser.add_argument("--seed", help="The NN random seed", type=int)
 parser.add_argument("-m", "--model", help="The RL architecture we will use.", default="PPO")
 parser.add_argument("-e", "--environment", help="The RL training environment the agent uses.", default="EVM")
 
@@ -66,9 +70,13 @@ root_dir = osp.abspath(osp.join(osp.dirname(osp.realpath(__file__)), ".."))
 
 
 bytecode = get_bytecode(args, root_dir)
-for k,v in bytecode.items():
-    print(k)
+
+# for k,v in bytecode.items():
+#     print(k)
 # env = EVM(args)
+
+config = get_config(args, root_dir)
+print(config)
 
 
 # model = get_model(
