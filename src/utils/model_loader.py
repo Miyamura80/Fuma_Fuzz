@@ -4,11 +4,12 @@ import distrax
 import jax
 import jax.numpy as jnp
 from models import CategoricalSeparateMLP, GaussianSeparateMLP
+from environment import make_environment
 
 def get_model(rng, config, speed=False):
     """Instantiate a model according to obs shape of environment."""
     # Get number of desired output units
-    env, env_params = gymnax.make(config.env_name, **config.env_kwargs)
+    env, env_params = make_environment(config.env_name, **config.env_kwargs)
 
     # Instantiate model class (flax-based)
     if config.train_type == "ES":

@@ -3,7 +3,6 @@ import argparse
 import os.path as osp
 from utils import get_bytecode, get_model, get_config, save_pkl_object, load_model_from_pkl
 from training import train_ppo
-from environment import EVM
 import jax
 
 def str2bool(v):

@@ -1,1 +1,1 @@
-from environment.evmc_env import EVM
+from environment.helper import make_environment

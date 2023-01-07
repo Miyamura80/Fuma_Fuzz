@@ -9,6 +9,7 @@ from flax.training.train_state import TrainState
 import numpy as np
 import tqdm
 import gymnax
+from environment import make_environment
 
 
 class BatchManager:
@@ -108,7 +109,7 @@ class RolloutManager(object):
     def __init__(self, model, env_name, env_kwargs, env_params):
         # Setup functionalities for vectorized batch rollout
         self.env_name = env_name
-        self.env, self.env_params = gymnax.make(env_name, **env_kwargs)
+        self.env, self.env_params = make_environment(env_name, **env_kwargs)
         self.env_params = self.env_params.replace(**env_params)
         self.observation_space = self.env.observation_space(self.env_params)
         self.action_size = self.env.action_space(self.env_params).shape
