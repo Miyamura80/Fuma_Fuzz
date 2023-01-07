@@ -1,8 +1,10 @@
 import configparser
 import argparse
 import os.path as osp
-from utils import get_bytecode, get_model, get_config
+from utils import get_bytecode, get_model, get_config, save_pkl_object
+from training import train_ppo
 from environment import EVM
+import jax
 
 def str2bool(v):
     if v.lower() in ("yes", "true", "t", "y", "1"):
@@ -47,7 +49,7 @@ parser.add_argument(
     "-c", "--config", help="Name of config file (.yaml) to use for RL model located inside of \`./config\`. ", required=True
 )
 parser.add_argument("--seed", help="The NN random seed", type=int)
-parser.add_argument("-m", "--model", help="The RL architecture we will use.", default="PPO")
+parser.add_argument("-m", "--model", help="The model pickle to load", type=str)
 parser.add_argument("-e", "--environment", help="The RL training environment the agent uses.", default="EVM")
 
 # Training arguments
@@ -76,21 +78,35 @@ bytecode = get_bytecode(args, root_dir)
 # env = EVM(args)
 
 config = get_config(args, root_dir)
-print(config)
+config = config.train_config
 
 
-# model = get_model(
-#     args,
-# )
+rng = jax.random.PRNGKey(0)
+rng, rng_init = jax.random.split(rng)
+# Setup the model architecture
+model, params = get_model(
+    rng,
+    config
+)
 
 
-# run_sc_model_gc(
-#     model,
-#     train_graphs,
-#     valid_graphs,
-#     lr=args.lr,
-#     batch_size=args.batch_size,
-#     epochs=args.epochs,
-# )
+mle_log = None
+# Log and store the results.
+log_steps, log_return, network_ckpt = train_ppo(
+    rng, config, model, params, mle_log
+)
+
+data_to_store = {
+    "log_steps": log_steps,
+    "log_return": log_return,
+    "network": network_ckpt,
+    "train_config": config,
+}
 
 
+log_ext = "001"
+
+save_pkl_object(
+    data_to_store,
+    f"agents/experiment/PPO_{log_ext}.pkl",
+)

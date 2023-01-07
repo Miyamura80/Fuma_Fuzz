@@ -1,1 +1,1 @@
-from models.ppo import PPO
+from models.model import CategoricalSeparateMLP, GaussianSeparateMLP
