@@ -130,3 +130,4 @@ dmypy.json
 
 .vscode/
 data/compiled_solidity/*
+data/data_analysis/*
