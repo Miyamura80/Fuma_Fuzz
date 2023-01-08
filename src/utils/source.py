@@ -21,13 +21,11 @@ def get_bytecode(args, root_dir) -> Dict[str, Any]:
                 solc_version=args.version,
                 optimize=args.optimize
             )
-            compiled_json = compiled_json[list(compiled_json.keys())[0]]
             with open(precompiled_solidity_path, "w") as f:
                 f.write(json.dumps(compiled_json))
         else:
             with open(precompiled_solidity_path, "r") as f:
                 compiled_json = json.load(f)
-                compiled_json = compiled_json[list(compiled_json.keys())[0]]
 
         return compiled_json
     else:
@@ -77,12 +75,10 @@ def compile_dir(args, root_dir) -> List[Dict[str, Any]]:
                         optimize=args.optimize
                     )
                 
-            compiled_json = compiled_json[list(compiled_json.keys())[0]]
             with open(precompiled_solidity_path, "w") as f:
                 f.write(json.dumps(compiled_json))
         else:
             with open(precompiled_solidity_path, "r") as f:
                 compiled_json = json.load(f)
-                compiled_json = compiled_json[list(compiled_json.keys())[0]]
         compiled_jsons.append(compiled_json)
     return compiled_jsons
