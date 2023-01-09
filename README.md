@@ -56,3 +56,14 @@ Each public function associated with $|I|$ size of`msg.value` to send with it.
 Thus action space is: $|Action|=3|I|$
 
 
+# Data Analysis 
+## ABI
+### Function & Contract Count
+![image](https://user-images.githubusercontent.com/38335479/211324732-f329d28b-445c-4dc3-9dff-d0ccf6c8e858.png)
+
+### Function count by state mutability
+![image](https://user-images.githubusercontent.com/38335479/211325051-6007aed3-6a0e-41d7-9090-d126c20a4dda.png)
+![image](https://user-images.githubusercontent.com/38335479/211325071-dc271644-941d-44f5-a1df-a9def1a22845.png)
+
+
+
