@@ -14,7 +14,8 @@
 - [ ] (HARD) Did a register change?
 
 # Backlog
-
+- (BREAK DOWN) Handle more than 1 target contract
+- Exploiting randomness (e.g. creating contracts to exploit randomness)
 - [ ] PyEVM environment for very specific "level" with a specific contract
 
 
