@@ -69,4 +69,14 @@ Thus action space is: $|Action|=3|I|$
 ![image](https://user-images.githubusercontent.com/38335479/211325071-dc271644-941d-44f5-a1df-a9def1a22845.png)
 
 
+### Argument Count for each function type 
+![image](https://user-images.githubusercontent.com/38335479/211928388-236a720a-4ef0-4fc2-b29d-cd21c899afb8.png)
+
+### Argument data types
+
+Pie chart `n=80611` from a sample of 1223 `.sol` source files.
+
+![image](https://user-images.githubusercontent.com/38335479/211932493-af2f366c-f423-47fd-8700-d22d3731acd7.png)
+
+
 
