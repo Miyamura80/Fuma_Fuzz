@@ -14,7 +14,8 @@
 - [ ] (HARD) Did a register change?
 
 # Backlog
-
+- (BREAK DOWN) Handle more than 1 target contract
+- Exploiting randomness (e.g. creating contracts to exploit randomness)
 - [ ] PyEVM environment for very specific "level" with a specific contract
 
 
@@ -54,5 +55,18 @@ Thus state space is: $|State|= |A||I|^2$
 Each public function associated with $|I|$ size of`msg.value` to send with it. 
 
 Thus action space is: $|Action|=3|I|$
+
+
+# Data Analysis 
+## ABI
+### Function & Contract Count
+![image](https://user-images.githubusercontent.com/38335479/211324732-f329d28b-445c-4dc3-9dff-d0ccf6c8e858.png)
+![image](https://user-images.githubusercontent.com/38335479/211325654-3fc52d1e-d938-4b86-9105-ed9203d180a3.png)
+
+
+### Function count by state mutability
+![image](https://user-images.githubusercontent.com/38335479/211325051-6007aed3-6a0e-41d7-9090-d126c20a4dda.png)
+![image](https://user-images.githubusercontent.com/38335479/211325071-dc271644-941d-44f5-a1df-a9def1a22845.png)
+
 
 
