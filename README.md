@@ -79,4 +79,9 @@ Pie chart `n=80611` from a sample of 1223 `.sol` source files.
 ![image](https://user-images.githubusercontent.com/38335479/211932493-af2f366c-f423-47fd-8700-d22d3731acd7.png)
 
 
+### Return data types
+
+n = 43181
+
+![image](https://user-images.githubusercontent.com/38335479/212086053-1388e593-ba6d-47e0-8758-e669dd0604d8.png)
 
