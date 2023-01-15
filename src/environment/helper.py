@@ -1,12 +1,12 @@
 from environment.breakout_miniatari import MinBreakout
-from environment.py_evm import PyEVM
+from environment.py_evm_env import PyEVM_Env
 
 def make_environment(env_id: str, **env_kwargs):
 
     if env_id == "Breakout-MinAtar":
         env = MinBreakout(**env_kwargs)
     elif env_id == "PyEVM":
-        env = PyEVM(**env_kwargs)
+        env = PyEVM_Env(**env_kwargs)
     else:
         raise ValueError("Environment ID is not registered.")
 
