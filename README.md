@@ -17,7 +17,8 @@
 - (BREAK DOWN) Handle more than 1 target contract
 - Exploiting randomness (e.g. creating contracts to exploit randomness)
 - [ ] PyEVM environment for very specific "level" with a specific contract
-
+- [ ] Rewrite so it works with arguments other than uint256 and address
+- [ ] Work on better and more granular termination condition
 
 # Formalisation
 
