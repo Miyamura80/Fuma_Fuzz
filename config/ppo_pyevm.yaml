@@ -4,7 +4,8 @@ train_config:
   evaluate_every_epochs: 5000
 
   env_name: "PyEVM"
-  env_kwargs: {}
+  env_kwargs: 
+    contract_names: ["fallback.sol"]
   env_params: {}
   num_test_rollouts: 164
   
