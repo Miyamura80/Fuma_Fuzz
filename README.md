@@ -39,9 +39,41 @@ $I=\text{Set of values to send ETH}$
 
 ### State Space: $State$
 
-- `contributions[creator]` $:: |I|$
-- `contributions[attacker]` $:: |I|$  
-- `owner` $:: |A|$
+>>> (
+        f_p1, ..., f_p|f_p|, f_n1, ..., f_n|f_n|, f_v1, ..., f_n|f_v|,
+        attacker_balance,
+        contract_balance,
+        o(f_v1), o(f_v2), ... , o(f_n|f_v|)
+    )
+
+    Dim 0: Info of function presence in ABI
+        - e.g.  I(f_p1), ..., I(f_p|f_p|), 
+                I(f_n1), ..., I(f_n|f_n|), 
+                I(f_v1), ..., I(f_n|f_v|)
+        - Shape: (|f_p| + |f_n| + |f_v|, 1)
+    Dim 1: Info of argument types (address)
+        - e.g.  I(c^1_p1==addr), ..., I(c^1_p|f_p|==addr),
+                I(c^1_n1==addr), ..., I(c^1_n|f_n|==addr),
+                I(c^1_v1==addr), ..., I(c^1_v|f_v|==addr),
+        - Shape: (|f_p| + |f_n| + |f_v|, m)
+    Dim 2: Info of argument types (uint256)
+        - e.g.  I(c^1_p1==uint256), ..., I(c^1_p|f_p|==uint256)
+                I(c^1_n1==uint256), ..., I(c^1_n|f_n|==uint256)
+                I(c^1_v1==uint256), ..., I(c^1_v|f_v|==uint256)
+        - Shape: (|f_p| + |f_n| + |f_v|, m)
+    Dim 3: Balances
+        - e.g.  A[0]
+                A[1]
+        - Shape: (|A|, 1)
+    Dim 4: Time
+        - e.g.  t
+        - Shape: (1,1)
+    Dim 5: Dynamic observation (view function output)
+        - e.g.  O(f_v1)
+                O(f_v2)
+                ...
+                O(f_v|f_v|)
+        - Shape: (|f_v|, m*(|I|+|A|))
 
 Thus state space is: $|State|= |A||I|^2$
 
@@ -49,11 +81,14 @@ Thus state space is: $|State|= |A||I|^2$
 ### Action Space: $Action$
 
 #### Public functions (With potential EVM state modification) 
-- `Fallback`
-- `contribute()` 
-- `withdraw()`
+- f_payable <ARGUMENTS> <VALUE>
+- f_nonpayable <ARGUMENTS>
 
-Each public function associated with $|I|$ size of`msg.value` to send with it. 
+>>> (function_id, payment_gwei, c_1, c_2, c_3)
+
+Where c_i == -1 means argument doesn't exist
+Where c_i from [0,10] -> maps to uint256, c_i from [11,12] -> maps to addresses
+
 
 Thus action space is: $|Action|=3|I|$
 
