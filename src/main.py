@@ -70,7 +70,7 @@ args = parser.parse_args()
 root_dir = osp.abspath(osp.join(osp.dirname(osp.realpath(__file__)), ".."))
 
 
-bytecode = get_bytecode(args, root_dir)
+# compiled_json = get_bytecode(args, root_dir)
 
 # for k,v in bytecode.items():
 #     print(k)
@@ -90,23 +90,24 @@ model, params = get_model(
 # model, params = load_model_from_pkl(config, f"agents/experiment/PPO_001.pkl")
 
 
+
 mle_log = None
 # Log and store the results.
 log_steps, log_return, network_ckpt = train_ppo(
     rng, config, model, params, mle_log
 )
 
-data_to_store = {
-    "log_steps": log_steps,
-    "log_return": log_return,
-    "network": network_ckpt,
-    "train_config": config,
-}
+# data_to_store = {
+#     "log_steps": log_steps,
+#     "log_return": log_return,
+#     "network": network_ckpt,
+#     "train_config": config,
+# }
 
 
-log_ext = "002"
+# log_ext = "002"
 
-save_pkl_object(
-    data_to_store,
-    f"agents/experiment/PPO_{log_ext}.pkl",
-)
+# save_pkl_object(
+#     data_to_store,
+#     f"agents/experiment/PPO_{log_ext}.pkl",
+# )
