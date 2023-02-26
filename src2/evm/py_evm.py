@@ -159,7 +159,7 @@ class Simulator(object):
                                                                funded_address_initial_balance())
         self.vm = self.chain.get_vm()
 
-    def executeCode(self, gas, data, code) -> BaseComputation:
+    def executeCode(self, gas, data, code, value=0) -> BaseComputation:
         """
         Executes the given bytecode sequence
         :param gas:
@@ -168,7 +168,6 @@ class Simulator(object):
         :return:
         """
         origin = None
-        value = 0
 
         return self.vm.execute_bytecode(origin, GAS_PRICE, gas, ADDRESS, ADDRESS, value, data, code)
 
@@ -228,12 +227,13 @@ class Py_EVM(EVM):
         self.sim = Simulator()
         self.sim.executeCode(10000000000, constructor_hash, self.bytecode)
 
-    def run_bytecode(self, f_args, abi_args) -> None:
+
+    def run_bytecode(self, f_args, f_value=0) -> None:
         # convert cli string input to tbytes input
         args_as_bytes = decode_hex(f_args)
 
         # execute raw bytecode
-        computation = self.sim.executeCode(10000000000, args_as_bytes, self.bytecode)
+        computation = self.sim.executeCode(10000000000, args_as_bytes, self.bytecode, f_value)
 
         # check, if error during execution occured
         if computation.is_error:
