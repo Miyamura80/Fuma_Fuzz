@@ -4,6 +4,10 @@ import os.path as osp
 from utils import get_bytecode, get_model, get_config, save_pkl_object, load_model_from_pkl
 from training import train_ppo
 import jax
+from jax.config import config
+
+config.update("jax_enable_x64", True)
+
 
 def str2bool(v):
     if v.lower() in ("yes", "true", "t", "y", "1"):
@@ -49,7 +53,6 @@ parser.add_argument(
 )
 parser.add_argument("--seed", help="The NN random seed", type=int)
 parser.add_argument("-m", "--model", help="The model pickle to load", type=str)
-parser.add_argument("-e", "--environment", help="The RL training environment the agent uses.", default="EVM")
 
 # Training arguments
 parser.add_argument("--lr", help="Learning rate.", default=0.001, type=float)
@@ -89,7 +92,15 @@ model, params = get_model(
 )
 # model, params = load_model_from_pkl(config, f"agents/experiment/PPO_001.pkl")
 
+from environment import make_environment
+rng = jax.random.PRNGKey(0)
+rng, key_reset, key_policy, key_step = jax.random.split(rng, 4)
+env, env_params = make_environment(config.env_name, **config.env_kwargs)
 
+obs, state = env.reset(key_reset, env_params)
+action = env.action_space(env_params).sample(key_policy)
+n_obs, n_state, reward, done, _ = env.step(key_step, state, action, env_params)
+print("done with exp")
 
 mle_log = None
 # Log and store the results.
