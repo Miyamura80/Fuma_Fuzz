@@ -5,6 +5,10 @@ from gymnax.environments import environment, spaces
 from typing import Tuple, Optional
 import chex
 from flax import struct
+from evm import Py_EVM, EVM
+from utils import get_bytecode
+import os.path as osp
+from dotmap import DotMap
 
 """
 ASSUMPTIONS:
@@ -28,8 +32,6 @@ class EnvState:
     time: int
     # contract: chex.Array # TODO: we ignore this for now!
     # victim_balances: int # TODO: for later! 
-
-
 
 @struct.dataclass
 class EnvParams:
@@ -86,6 +88,7 @@ class PyEVM_Env(environment.Environment):
 
     >>> (function_id, payment_gwei, c_1, c_2, c_3)
 
+    Where c_i == -1 means argument doesn't exist
     Where c_i from [0,10] -> maps to uint256, c_i from [11,12] -> maps to addresses
     ----------------------------------------------------------------
     REWARD:
@@ -99,15 +102,34 @@ class PyEVM_Env(environment.Environment):
 
     """
     # TODO: Collapse this into args
-    def __init__(self, contract_abi, bytecode):
-        self.contract_abi = contract_abi
-        self.action_func_num = len(filter(lambda x: x["stateMutability"]=="payable" or x["stateMutability"]=="nonpayable", contract_abi))
-        self.bytecode = bytecode
+    def __init__(self, contract_names):
+        contract_name = contract_names[0]
+
+        args = {"source": contract_name, 
+                "recompile": False,
+                "version": "0.7.0",
+                "optimize": True,
+            }
+        args = DotMap(args)
+
+        root_dir = osp.abspath(osp.join(osp.dirname(osp.realpath(__file__)), "..", ".."))
+        compiled_json = get_bytecode(args, root_dir)
+
+        self.contract_abi = compiled_json["abi"]
+        self.bytecode = compiled_json["bin-runtime"]
+
+        self.action_func_num = len(list(filter(lambda x: x["stateMutability"]=="payable" or x["stateMutability"]=="nonpayable", self.contract_abi)))
+        
+        # Utils
+        self.action_function_lookup, self.dynamic_obs_func_lookup  = create_function_lookup(self.contract_abi)
         
         # Setting up the observation attributes
-        temp_params = self.default_params()
+        temp_params = self.default_params
         arg_int_size = temp_params.uint256_arg_max - temp_params.uint256_arg_min + 1
         
+        # EVM 
+        self.evm = Py_EVM(args)
+
         self.arg_int_size = arg_int_size
         self.obs_shape = (
             6, 
@@ -129,7 +151,8 @@ class PyEVM_Env(environment.Environment):
         params: EnvParams,
     ) -> Tuple[chex.Array, EnvState, float, bool, dict]:
         """Perform single timestep state transition."""
-        state, reward = step_evm(state, self.contract_abi, action)
+        compilation_result = {"abi": self.contract_abi, "bin-runtime": self.bytecode}
+        state, reward = step_evm(state, compilation_result, action, self.evm, self.action_function_lookup)
 
         # Check game condition & no. steps for termination condition
         done = self.is_terminal(state, params)
@@ -202,8 +225,7 @@ class PyEVM_Env(environment.Environment):
         obs = jnp.zeros(self.obs_shape, dtype=jnp.int64)
         # Set the observation tensor according to above spec
         obs = obs.at[0, :, 0].set(state.abi_function_onehot)
-        obs = obs.at[1, :, 0:MAX_ARGUMENT_COUNT].set(state.abi_argument_onehot.at[0, :, :])
-        obs = obs.at[2, :, 0:MAX_ARGUMENT_COUNT].set(state.abi_argument_onehot.at[1, :, :])
+        obs = obs.at[1:3, :, 0:MAX_ARGUMENT_COUNT].set(state.abi_argument_onehot)
         # BACKLOG: Seperate this into seperate dimensions
         obs = obs.at[3, 0:ADDRESS_SET_SIZE, 0].set(jnp.array([state.attacker_balance, state.contract_balance]))
         obs = obs.at[4, 0, 0].set(state.time)
@@ -269,6 +291,29 @@ class PyEVM_Env(environment.Environment):
             }
         )
 
+# Takes the contract_abi and returns indexing from func_id -> func_name
+def create_function_lookup(contract_abi: dict) -> Tuple[dict, dict]:
+    f_v_set, f_action_set = [], []
+    for func in contract_abi:
+        if func["stateMutability"]=="view":
+            f_v_set.append(func)
+        elif func["stateMutability"]=="payable" or func["stateMutability"]=="nonpayable":
+            f_action_set.append(func)
+    
+    f_v_set += [{}] * (MAX_FUNC_VIEWABLE - len(f_v_set))
+    f_action_set += [{}] * (MAX_FUNC_PAYABLE + MAX_FUNC_NONPAYABLE - len(f_action_set))
+
+    action_function_lookup = {}
+    dynamic_obs_func_lookup = {}
+    for i in range(MAX_FUNC_PAYABLE+MAX_FUNC_NONPAYABLE):
+        if f_action_set[i] != {} and "name" in f_action_set[i]:
+            action_function_lookup[i] = f_action_set[i]["name"]
+
+    for i in range(MAX_FUNC_VIEWABLE):
+        if f_v_set[i] != {} and "name" in f_v_set[i]:
+            dynamic_obs_func_lookup[i] = f_v_set[i]["name"]
+
+    return action_function_lookup, dynamic_obs_func_lookup
 
 def contract_abi_json_to_array(contract_abi: dict) -> Tuple[chex.Array, chex.Array]:
     # Assertion about proper contract ABI requirements met
@@ -285,7 +330,7 @@ def contract_abi_json_to_array(contract_abi: dict) -> Tuple[chex.Array, chex.Arr
     assert len(f_p_set) <= MAX_FUNC_PAYABLE
     assert len(f_n_set) <= MAX_FUNC_NONPAYABLE
 
-    abi_function_onehot = jnp.zeros((MAX_FUNC_TOTAL, 1),jnp.int64) 
+    abi_function_onehot = jnp.zeros((MAX_FUNC_TOTAL),jnp.int64) 
     abi_argument_onehot = jnp.zeros((2, MAX_FUNC_TOTAL, MAX_ARGUMENT_COUNT),jnp.int64)
 
     f_v_set += [{}] * (MAX_FUNC_VIEWABLE - len(f_v_set))
@@ -293,19 +338,32 @@ def contract_abi_json_to_array(contract_abi: dict) -> Tuple[chex.Array, chex.Arr
     f_n_set += [{}] * (MAX_FUNC_NONPAYABLE - len(f_n_set))
     whole_list = f_p_set + f_n_set + f_v_set
 
-    argument_to_dim = {"address": 0, "uint256": 1}    
+    argument_to_dim = {"address": 0, "uint256": 1}
 
     for i in range(0, MAX_FUNC_TOTAL):
-        if whole_list[i] != {}:
-            abi_function_onehot = abi_function_onehot.at[i, 0].set(1)
+        if whole_list[i] != {} and "inputs" in whole_list[i]:
+            abi_function_onehot = abi_function_onehot.at[i].set(1)
             for j, argument in enumerate(whole_list[i]["inputs"]):
                 abi_argument_onehot = abi_argument_onehot.at[argument_to_dim[argument["type"]], i, j].set(1)
 
     return abi_function_onehot, abi_argument_onehot
 
 # TODO
-def step_evm(state: EnvState, contract_abi: dict, action: spaces.Box) -> Tuple[EnvState, float]:
+def step_evm(state: EnvState, compilation_result: dict, action: spaces.Box, evm: EVM, fname_lookup: dict) -> Tuple[EnvState, float]:
     
+    # Unpack the values from the state
+    func_id, payment_gwei, c_1, c_2, c_3 = action
+
+    func_name = fname_lookup[func_id]
+    # arg_val_lookup = {i: }
+
+    inputs = {}
+    args = {}
+    abi_args = (func_name, inputs)
+
+    # Execute the action on the EVM
+    # evm.run_bytecode(args, compilation_result, abi_args)
+
     new_attacker_balance = state.attacker_balance
     new_contract_balance = state.contract_balance
     evm_state_obs = []
