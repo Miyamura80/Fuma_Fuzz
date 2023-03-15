@@ -15,19 +15,25 @@ def get_bytecode(args, root_dir) -> Dict[str, Any]:
         precompiled_solidity_path = osp.join(root_dir, "data", "compiled_solidity", f"{source_prefix}.json")
 
         if not osp.exists(precompiled_solidity_path) or args.recompile:
+            solcx.install_solc(args.version)
             compiled_json = solcx.compile_files(
                 [source_code_path],
                 output_values=["abi", "bin-runtime"],
                 solc_version=args.version,
                 optimize=args.optimize
             )
-            with open(precompiled_solidity_path, "w") as f:
-                f.write(json.dumps(compiled_json))
+            for key, value in compiled_json.items():
+                with open(precompiled_solidity_path, "w") as f:
+                    f.write(json.dumps(value))
         else:
             with open(precompiled_solidity_path, "r") as f:
                 compiled_json = json.load(f)
 
-        return compiled_json
+        compiled_jsons = []
+        for _key, value in compiled_json.items():
+            compiled_json.append(value)
+
+        return compiled_jsons
     else:
         raise ValueError("Please provide a .sol type for source")
 
