@@ -42,7 +42,7 @@ parser.add_argument(
     type=str2bool,
     default=True,
 )
-parser.add_argument("-v", "--version", help="The solc version we will use.", default="0.7.0")
+parser.add_argument("-v", "--version", help="The solc version we will use.", default="0.8.3")
 
 # RL arguments
 parser.add_argument(
@@ -70,7 +70,7 @@ args = parser.parse_args()
 root_dir = osp.abspath(osp.join(osp.dirname(osp.realpath(__file__)), ".."))
 
 
-# compiled_json = get_bytecode(args, root_dir)
+compiled_json = get_bytecode(args, root_dir)
 
 # for k,v in bytecode.items():
 #     print(k)

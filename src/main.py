@@ -45,7 +45,7 @@ parser.add_argument(
     type=str2bool,
     default=True,
 )
-parser.add_argument("-v", "--version", help="The solc version we will use.", default="0.7.0")
+parser.add_argument("-v", "--version", help="The solc version we will use.", default="0.8.3")
 
 # RL arguments
 parser.add_argument(
