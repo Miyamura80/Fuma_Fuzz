@@ -132,3 +132,5 @@ dmypy.json
 data/compiled_solidity/*
 data/data_analysis/*
 .ignore/*
+config.ini
+.neptune/*
