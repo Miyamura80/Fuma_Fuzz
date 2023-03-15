@@ -29,11 +29,11 @@ def get_bytecode(args, root_dir) -> Dict[str, Any]:
             with open(precompiled_solidity_path, "r") as f:
                 compiled_json = json.load(f)
 
-        compiled_jsons = []
-        for _key, value in compiled_json.items():
-            compiled_json.append(value)
+        # compiled_jsons = []
+        # for _key, value in compiled_json.items():
+        #     compiled_jsons.append(value)
 
-        return compiled_jsons
+        return compiled_json
     else:
         raise ValueError("Please provide a .sol type for source")
 
