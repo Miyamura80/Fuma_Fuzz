@@ -8,6 +8,7 @@ import os.path as osp
 from typing import Tuple, Optional
 from Crypto.Hash import keccak
 from typing import List
+from eth_utils import encode_hex
 
 
 # State - Function description settings (ERROR if contract exceeds this)
@@ -19,9 +20,6 @@ MAX_FUNC_TOTAL: int = MAX_FUNC_VIEWABLE + MAX_FUNC_NONPAYABLE + MAX_FUNC_PAYABLE
 MAX_ARGUMENT_COUNT: int = 3
 
 # Action - Function argument settings
-ADDRESSES = ["0x69420552091A69125d5DfCb7b8C2659029395Bdf", "0x38644552091A69125d5DfCb7b8C2659029395Bdf"]
-ADDRESS_SET_SIZE: int = len(ADDRESSES) # Default |A|=2, A[0] is attacker, A[1] is deployer, A[2],... is victims
-
 params = {
     # Attack environment setup
     "contract_initial_balance": 10,
@@ -32,7 +30,13 @@ params = {
     "uint256_arg_min": 0, # 1 gwei
     "uint256_arg_max": 10 # 1 ETH
 }
-params["arg_int_size"] = params["uint256_arg_max"] - params["uint256_arg_min"] + 1
+arg_int_size = params["uint256_arg_max"] - params["uint256_arg_min"] + 1
+params["arg_int_size"] = arg_int_size
+ADDRESSES = {"0x69420552091a69125d5dfcb7b8c2659029395bdf": arg_int_size, 
+             "0x38644552091a69125d5dfcb7b8c2659029395bdf": arg_int_size+1, 
+            
+            }
+ADDRESS_SET_SIZE: int = len(ADDRESSES) # Default |A|=2, A[0] is attacker, A[1] is deployer, A[2],... is victims
 params["a_set_size"] = params["arg_int_size"] + ADDRESS_SET_SIZE
 params = DotMap(params)
 
@@ -110,8 +114,8 @@ class PyEVM_Env(gym.Env):
         temp_params = self.default_params
         arg_int_size = temp_params.uint256_arg_max - temp_params.uint256_arg_min + 1
         
-        # EVM 
-        self.evm = Py_EVM(args, self.bytecode)
+        # EVM. Initialized by default address
+        self.evm = Py_EVM(args, self.bytecode, self.contract_abi)
 
         self.arg_int_size = arg_int_size
         self.obs_shape = (
@@ -156,7 +160,7 @@ class PyEVM_Env(gym.Env):
         )
 
     def reset(self):
-        self.evm.reset()
+        self.evm.reset(self.bytecode, self.contract_abi)
         abi_function_onehot, abi_argument_onehot = contract_abi_json_to_array(self.contract_abi)
         dynamic_observation = reset_dynamic_observation(self.contract_abi, self.evm)
 
@@ -262,26 +266,36 @@ def step_evm(state: DotMap, compilation_result: dict, action: spaces.Box, evm: E
     # Unpack the values from the state
     func_id, payment_gwei, c_1, c_2, c_3 = action
     func_id = round(func_id)
+    payment_gwei = int(payment_gwei)
+    arguments = []
+    contract_abi = compilation_result['abi']
+
+    arguments = []
+    func = [func for func in contract_abi if "name" in func and func["name"]=="contribute"][0]
+    input_types = [inp["type"] for inp in func["inputs"]]
+    for i,c in enumerate([c_1, c_2, c_3]):
+        if i < len(input_types):
+            arguments.append(round(c))
 
     if func_id >= len(fname_lookup):
         return state, 0.0
-
-    func_name = fname_lookup[func_id+1]
+    f_name = fname_lookup[func_id+1]
     # arg_val_lookup = {i: }
 
-    inputs = {}
-    args = {}
-    contract_abi = compilation_result['abi']
 
     # Execute the action on the EVM
-    # evm.run_bytecode(args, compilation_result, abi_args)
-
-    new_attacker_balance = state.attacker_balance
-    new_contract_balance = state.contract_balance
-    evm_state_obs = []
-
+    f_arg = get_hash_function_call(contract_abi, f_name, arguments)
+    evm.run_bytecode(f_arg, payment_gwei)
     dynamic_observation = reset_dynamic_observation(contract_abi, evm)
 
+
+    # TODO: Get a method that can get these data
+    new_attacker_balance = state.attacker_balance
+    new_contract_balance = state.contract_balance
+
+    
+
+    # TODO: Update these state values
     new_state = DotMap()
     new_state.abi_function_onehot=state.abi_function_onehot
     new_state.abi_argument_onehot=state.abi_argument_onehot
@@ -290,22 +304,49 @@ def step_evm(state: DotMap, compilation_result: dict, action: spaces.Box, evm: E
     new_state.view_function_output=dynamic_observation
     new_state.time=state.time + 1
 
-
+    # TODO: Update rewards
     reward = 0.0
 
     return new_state, reward
 
+
+powers_of_10 = {i: 10**i for i in range(params["uint256_arg_min"], params["uint256_arg_max"])}
+def get_hash_function_call(contract_abi: dict, f_name: str, arguments: List[int]) -> str:
+    # Find the function input signature
+    func = [func for func in contract_abi if "name" in func and func["name"]=="contribute"][0]
+    input_types = [inp["type"] for inp in func["inputs"]]
+    f_hash = keccak_of_func_signature(f_name, input_types)
+    
+    arg_in_values = []
+    for i,arg in enumerate(arguments):
+        if i < len(input_types)-1:
+            if arg <= params["arg_int_size"] and input_types[i]=="uint256":
+                c_i = powers_of_10[arg]
+            elif arg < params["arg_int_size"] + ADDRESS_SET_SIZE and input_types[i]=="address":
+                c_i = ADDRESSES.keys()[arg - params["arg_int_size"]]
+            else:
+                c_i = 0
+
+            c_i = pad_argument(c_i)
+            arg_in_values.append(c_i)
+    
+    f_arg = f_hash + b''.join(arg_in_values)
+    return f_arg.decode()
+
 # BACKLOG: With int inputs as well
 def reset_dynamic_observation(contract_abi: dict, evm: EVM):
     viewable_abi = [func for i,func in enumerate(contract_abi) if func['stateMutability']=='view']
-    f_hash_typemap = [(keccak_of_func_signature(func['name'],[inp["type"] for inp in func['inputs']]), [inp["type"] for inp in func['inputs']]) for func in viewable_abi]
+    f_hash_typemap = [(keccak_of_func_signature(func['name'],[inp["type"] for inp in func['inputs']]), [inp["type"] for inp in func['inputs']], func['name'], func['outputs'][0]['type']) for func in viewable_abi]
 
     result = np.zeros((MAX_FUNC_VIEWABLE, ADDRESS_SET_SIZE), dtype=np.int64)
-    for i, (f_hash, inps) in enumerate(f_hash_typemap):
-        for j,addr in enumerate(ADDRESSES):
-            f_arg = f_hash if len(inps)==0 else f_hash + pad_argument(addr)
-            f_arg = f_arg.decode()
-            return_output = evm.run_bytecode(f_arg, contract_abi)
+    for i, (f_hash, inps, f_name, return_type) in enumerate(f_hash_typemap):
+        for j,addr in enumerate(evm.accounts):
+            f_args = [] if len(inps)==0 else [addr]
+            return_output = evm.run_bytecode(f_name, f_args, 0)
+            # TODO: Gotta handle the case where it returns address
+            if return_type=="address":
+                addr_str = encode_hex(return_output)
+                print("address")
             result[i, j] = int.from_bytes(return_output, "big")
 
     return result
@@ -319,7 +360,7 @@ def keccak_of_func_signature(func_name: str, param_types: List[str]):
     hex_hash = h.hexdigest()
     return hex_hash[0:8].encode('utf-8')
 
-def pad_argument(arg: str):
+def pad_argument(arg: any):
     if arg.startswith('0x'):
         arg = arg[2:]
     encoded = arg.encode('utf-8')

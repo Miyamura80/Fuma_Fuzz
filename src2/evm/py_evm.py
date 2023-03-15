@@ -2,6 +2,8 @@
 from .evm import EVM
 import sys
 from Crypto.Hash import keccak
+from eth_tester import EthereumTester, PyEVMBackend
+from web3 import Web3, EthereumTesterProvider
 
 # Append path of py-evm repo for imports
 from eth.db.atomic import AtomicDB
@@ -12,12 +14,15 @@ from eth_keys.datatypes import PrivateKey
 from eth_utils import (
     to_wei,
     to_canonical_address, 
-    decode_hex
+    decode_hex,
+    is_checksum_address
 )
+
 from eth import constants, Chain
 from eth.vm.forks.byzantium import ByzantiumVM
 from eth.vm.forks.constantinople import ConstantinopleVM
 from eth.vm.forks.arrow_glacier import ArrowGlacierVM
+from eth_account import Account
 
 sys.path.append('../../py-evm/')
 
@@ -26,6 +31,7 @@ sys.path.append('../../py-evm/')
 ADDRESS = bytes.fromhex("123456789A123456789A123456789A123456789A")
 GAS_PRICE = 1
 VERBOSE = False
+Web3.DEBUG = True
 
 
 def base_db() -> AtomicDB:
@@ -159,7 +165,7 @@ class Simulator(object):
                                                                funded_address_initial_balance())
         self.vm = self.chain.get_vm()
 
-    def executeCode(self, gas, data, code, value=0) -> BaseComputation:
+    def executeCode(self, gas, data, code, value:int=0, sender=ADDRESS) -> BaseComputation:
         """
         Executes the given bytecode sequence
         :param gas:
@@ -168,8 +174,8 @@ class Simulator(object):
         :return:
         """
         origin = None
-
-        return self.vm.execute_bytecode(origin, GAS_PRICE, gas, ADDRESS, ADDRESS, value, data, code)
+        baseComputation = self.vm.execute_bytecode(origin, GAS_PRICE, gas, sender, sender, value, data, code)
+        return baseComputation
 
 
 def main(inputCode) -> None:
@@ -212,47 +218,129 @@ def pretty_print_bytecode(hex_string):
     pretty_hex_string = '\n'.join([f"[{i/2}] {hex_string[i:i+2]}" for i in range(0, len(hex_string), 2)])
     return pretty_hex_string
     
-
 class Py_EVM(EVM):
     
-    def __init__(self, args, bytecode, deployer="0x38644552091A69125d5DfCb7b8C2659029395Bdf") -> None:
+    def __init__(self, args, bytecode, contract_abi, account_num=2) -> None:
         super().__init__(args)
-        self.sim = Simulator()
         self.bytecode_str = bytecode
+        self.contract_abi = contract_abi
         self.bytecode = decode_hex(bytecode)
-        self.deployer = deployer
 
-    def reset(self):
-        constructor_hash = decode_hex("90fa17bb") # h("constructor()")
-        self.sim = Simulator()
-        self.sim.executeCode(10000000000, constructor_hash, self.bytecode)
+        # W3 stuff
+        self.tester_provider = EthereumTesterProvider(EthereumTester(PyEVMBackend()))
+        self.eth_tester = self.tester_provider.ethereum_tester
+        self.w3 = Web3(self.tester_provider)
+
+        # Create accounts 
+        assert account_num >= 2 # Require at least a deployer and an attacker
+        self.accounts = [Account.create(str(i)) for i in range(account_num)]
+        self.deployer_acc = self.accounts[1]
+        self.attacker_acc = self.accounts[0]
+        self.accounts = {acc.address : acc for acc in self.accounts}
+        
+        # Send money to these initialized accounts
+        for i,acc in enumerate(self.accounts):
+            sender = self.eth_tester.get_accounts()[i]
+            self.eth_tester.send_transaction({'from': sender,
+                                              'to': acc,
+                                              'gas': 30000,
+                                              'value': self.eth_tester.get_balance(sender) // 2})
+
+        self.reset(bytecode, contract_abi)
 
 
-    def run_bytecode(self, f_args, f_value=0) -> None:
-        # convert cli string input to tbytes input
-        args_as_bytes = decode_hex(f_args)
+    def reset(self, bytecode, abi):
+        self.contract = self.w3.eth.contract(abi=abi, bytecode=bytecode)
+        # Run constructor from deployer
+        # self.run_bytecode("constructor", [], 0, self.deployer_acc.address)
+        # tx_hash = self.contract.constructor().transact({'from': self.deployer_acc.address, 'gas': 2000000})
+        # tx = self.contract.constructor().transact()
 
-        # execute raw bytecode
-        computation = self.sim.executeCode(10000000000, args_as_bytes, self.bytecode, f_value)
-
-        # check, if error during execution occured
-        if computation.is_error:
-            origin = computation._error
-            print(computation._stack.values)
-            exc = VMExecutionError(str(origin), origin)
-            raise exc
-
-        # TODO: Get the value read from view functions
+        # tx = self.contract.constructor().buildTransaction({'from': self.deployer_acc.address, 
+        #                                                    'gas': 2000000, 
+        #                                                    'nonce': self.w3.eth.getTransactionCount(self.deployer_acc.address),})
+        # signed_tx = self.deployer_acc.sign_transaction(tx)
+        # tx_hash = self.w3.eth.sendRawTransaction(signed_tx.rawTransaction)
+        # tx_receipt = self.w3.eth.waitForTransactionReceipt(tx_hash)
         
 
-        if VERBOSE:
-            print("Gas used: " + str(computation.get_gas_used()))
-            print("Remaining gas: " + str(computation.get_gas_remaining()))
-            print("Value Returned: " + str(computation.output))
-            print(computation.get_log_entries())
-            print("Stack: " + str(computation._stack.values))
+        tx_hash = self.contract.constructor().transact(transaction={'from': self.eth_tester.get_accounts()[4], 'gas': 3100000})
+        tx_receipt = self.w3.eth.waitForTransactionReceipt(tx_hash)
         
-        return computation.output
+        self.contract_address = tx_receipt.contractAddress
+        self.contract_object = self.w3.eth.contract(abi=abi, address=self.contract_address, bytecode=bytecode)
+        print("end")
+
+    # TODO: Fix the caller of run_bytecode in env
+    def run_bytecode(self, f_name, f_args, f_value:int=0, sender_addr=None):
+        # By Default, it executes under the attacker
+        sender_account = self.accounts[sender_addr] if sender_addr!=None else self.attacker_acc
+
+        tx = getattr(self.contract_object.functions, f_name)(*f_args) \
+                .buildTransaction({
+                'from': sender_account.address,
+                'value': f_value,
+                'gas': 1500000,
+                'nonce': self.w3.eth.getTransactionCount(sender_account.address),
+            })
+        # TODO: Check if the data produced here is the same as the one hard coded
+        signed_tx = sender_account.sign_transaction(tx)
+        tx_hash = self.w3.eth.sendRawTransaction(signed_tx.rawTransaction)
+        tx_receipt = self.w3.eth.waitForTransactionReceipt(tx_hash)
+        r = self.contract_object.functions.contributions(*f_args).transact()
+        r = self.contract_object.functions.contributions(*f_args).transact({
+                'value': f_value,
+                'gas': 1500000,
+            })
+        return r.hex()
+
+
+
+
+# class Py_EVM(EVM):
+    
+#     def __init__(self, args, bytecode, deployer="0x38644552091a69125d5dfcb7b8c2659029395bdf") -> None:
+#         super().__init__(args)
+#         self.bytecode_str = bytecode
+#         self.bytecode = decode_hex(bytecode)
+
+#         deployer_raw = deployer[2:] if deployer.startswith("0x") else deployer
+#         self.deployer = to_canonical_address(deployer)
+        
+#         self.reset()
+
+
+#     def reset(self):
+#         constructor_hash = decode_hex("90fa17bb") # h("constructor()")
+#         self.sim = Simulator()
+#         self.sim.executeCode(10000000000, constructor_hash, self.bytecode, sender=self.deployer)
+
+
+#     def run_bytecode(self, f_args, f_value:int=0) -> None:
+#         # convert cli string input to tbytes input
+#         args_as_bytes = decode_hex(f_args)
+
+#         # execute raw bytecode
+#         computation = self.sim.executeCode(10000000000, args_as_bytes, self.bytecode, f_value)
+
+#         # check, if error during execution occured
+#         if computation.is_error:
+#             origin = computation._error
+#             print(computation._stack.values)
+#             exc = VMExecutionError(str(origin), origin)
+#             raise exc
+
+#         # TODO: Get the value read from view functions
+        
+
+#         if VERBOSE:
+#             print("Gas used: " + str(computation.get_gas_used()))
+#             print("Remaining gas: " + str(computation.get_gas_remaining()))
+#             print("Value Returned: " + str(computation.output))
+#             print(computation.get_log_entries())
+#             print("Stack: " + str(computation._stack.values))
+        
+#         return computation.output
 
 
 if __name__=="__main__":
