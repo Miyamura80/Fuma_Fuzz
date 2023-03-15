@@ -27,6 +27,7 @@ train_config:
   network_config:
     num_hidden_units: 256
     num_hidden_layers: 2
+    flatten_3d: True
 
 log_config:
   time_to_track: ["num_steps"]

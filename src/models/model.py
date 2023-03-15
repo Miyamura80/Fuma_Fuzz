@@ -88,9 +88,17 @@ class GaussianSeparateMLP(nn.Module):
     prefix_critic: str = "critic"
     min_std: float = 0.001
     model_name: str = "separate-mlp"
+    flatten_3d: bool = False  # PyEVM case
 
     @nn.compact
     def __call__(self, x, rng):
+        # Flatten a single 3D image
+        if self.flatten_3d and len(x.shape) == 3:
+            x = x.reshape(-1)
+        # Flatten a batch of 3d images into a batch of flat vectors
+        if self.flatten_3d and len(x.shape) > 3:
+            x = x.reshape(x.shape[0], -1)
+
         x_v = nn.relu(
             nn.Dense(
                 self.num_hidden_units,
