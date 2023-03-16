@@ -4,9 +4,11 @@ import os.path as osp
 from utils import get_bytecode, get_model, get_config, save_pkl_object, load_model_from_pkl
 from training import train_ppo
 import jax
-from jax.config import config
+from jax.config import config as jax_config
+import neptune
+import time
 
-config.update("jax_enable_x64", True)
+jax_config.update("jax_enable_x64", True)
 
 
 def str2bool(v):
@@ -18,9 +20,17 @@ def str2bool(v):
         raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
-# Default Configuration
-config = configparser.ConfigParser()
-config.read("config.ini")
+# Neptune setup
+NENPTUNE_ON = False
+env_config = configparser.ConfigParser()
+env_config.read("config.ini")
+if env_config["DEFAULT"]["NEPTUNE_API_TOKEN"] and env_config["DEFAULT"]["NEPTUNE_API_TOKEN"] != "..." and NENPTUNE_ON:
+    neptune_client = neptune.init_run(
+        project=env_config["DEFAULT"]["NEPTUNE_PROJECT"],
+        api_token=env_config["DEFAULT"]["NEPTUNE_API_TOKEN"],
+    )
+else:
+    neptune_client = None
 
 
 
@@ -69,6 +79,9 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+# Add arguments to neptune
+if neptune_client:
+    neptune_client["parameters"] = vars(args)
 
 root_dir = osp.abspath(osp.join(osp.dirname(osp.realpath(__file__)), ".."))
 
@@ -102,10 +115,11 @@ action = env.action_space(env_params).sample(key_policy)
 n_obs, n_state, reward, done, _ = env.step(key_step, state, action, env_params)
 print("done with exp")
 
+print(config)
 mle_log = None
 # Log and store the results.
 log_steps, log_return, network_ckpt = train_ppo(
-    rng, config, model, params, mle_log
+    rng, config, model, params, mle_log, neptune_client
 )
 
 # data_to_store = {
@@ -122,3 +136,8 @@ log_steps, log_return, network_ckpt = train_ppo(
 #     data_to_store,
 #     f"agents/experiment/PPO_{log_ext}.pkl",
 # )
+
+if neptune_client:
+    neptune_client.stop()
+    # To let neptune sync
+    time.sleep(8)
