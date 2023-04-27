@@ -2,6 +2,11 @@
 # Fuma Fuzz - RL Smart Contract Bug Discovery
 
 
+# TODO (GNN)
+
+- [ ] Implement normalization techniques of bytecode from cfg-embedding-similarity-2021 paper
+
+
 # TODO
 
 - [ ] Think through how to model action spaces for different ABI
